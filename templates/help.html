@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="it">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta name="description" content="Un modo semplice e veloce per gestire le fanart di ArtBound.">
+    <meta name="author" content="BiRabittoh">
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>✏️</text></svg>">
+    <title>ArtBound Panel - Informazioni</title>
+    <link href="/static/ext/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/static/style.css" rel="stylesheet">
+</head>
+
+<body>
+    <main role="main">
+        <section class="jumbotron text-center">
+            <div class="container">
+                <h1 class="jumbotron-heading">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                        class="feather feather-activity">
+                        <polygon points="14 2 18 6 7 17 3 17 3 13 14 2"></polygon>
+                        <line x1="3" y1="22" x2="21" y2="22"></line>
+                    </svg>
+                    ArtBound Panel
+                </h1>
+                <h2 class="lead">Informazioni</h2>
+
+            </div>
+        </section>
+        <div class="container">
+            <div class="row text-row">
+                <div class="col-md-12">
+                    <p>
+                        ArtBound Panel è uno strumento che aiuta a selezionare, ridimensionare, rinominare e marchiare
+                        con facilità le fanart che arrivano ad Earthbound Café.
+                    </p>
+                </div>
+            </div>
+            <div class="row text-row">
+                <div class="col-md-12">
+                    <h2 class="lead">Istruzioni</h2>
+                    <ol>
+                        <li>Per prima cosa, seleziona il mese da cui vuoi estrarre le fanart e clicca sul tasto {{ .GetFirst }} a
+                            fianco. Se le immagini non sono in cache potrebbe volerci un attimo.</li>
+                        <li>Ripeti l'operazione precedente ({{ .Get }}) per integrare le fanart di eventuali
+                            altri mesi.</li>
+                        <li>Disabilita ({{ .Toggle }}) le fanart non necessarie e ordina ({{ .Prev }},
+                            {{ .Next }}) opportunamente il resto.</li>
+                        <li>Usa il mouse o il touch screen per posizionare il watermark su ciascuna immagine.</li>
+                        <li>Usa i tasti {{ .Save }} o {{ .SaveIG }} per salvare i risultati su file.
+                        </li>
+                    </ol>
+                    <p>Data e ora sotto il titolo rappresentano l'ultimo aggiornamento del database delle fanart; per
+                        aggiornare il database, cliccaci sopra. Se ci sono nuove fanart, potrebbe comunque essere
+                        necessario aggiornare la pagina per caricarle.</p>
+                </div>
+            </div>
+            <div class="row text-row">
+                <div class="col-md-12">
+                    <h2 class="lead">Comandi fanart</h2>
+                    <p>
+                        Questi comandi sono posizionati lungo la parte inferiore destra di ogni fanart e permettono di
+                        agire su di essa.
+                    </p>
+                    <ul>
+                        <li>{{ .Prev }}: porta indietro la fanart;</li>
+                        <li>{{ .Toggle }}: abilita o disabilita la fanart;</li>
+                        <li>{{ .Color }}/{{ .ColorBlack }}: alterna tra watermark bianco e nero;</li>
+                        <li>{{ .Rotate }}: ruota la fanart in senso orario;</li>
+                        <li>{{ .Save }}: salva la fanart nel formato base, per Facebook, Mastodon, Twitter e Google Forms;</li>
+                        <li>{{ .SaveIG }}: salva la fanart nel formato storia, per Instagram.</li>
+                        <li>{{ .Next }}: porta avanti la fanart.</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="row text-row">
+                <div class="col-md-12">
+                    <h2 class="lead">Comandi globali</h2>
+                    <p>
+                        Questi comandi sono posizionati sulla parte superiore centrale della pagina e permettono di
+                        agire su tutte le fanart.
+                    </p>
+                    <ul>
+                        <li>{{ .SelectAll }}: abilita tutte le fanart;</li>
+                        <li>{{ .SelectNone }}: disabilita tutte le fanart;</li>
+                        <li>Slider: cambia l'opacità dei prossimi watermark;</li>
+                        <li>{{ .Save }}: salva tutte le fanart nel formato base;</li>
+                        <li>{{ .SaveIG }}: salva tutte le fanart nel formato storia.</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="row text-row">
+                <div class="col-md-12 text-center">
+                    <a href="/" class="btn btn-primary">Home {{ .Home }}</a>
+                </div>
+            </div>
+        </div>
+    </main>
+    <footer>
+        <div class="container">
+            <p>&copy; <a href="https://linktr.ee/earthboundcafe">Earthbound Café</a>, realizzato da <a
+                    href="https://birabittoh.github.io/">BiRabittoh</a>.</p>
+        </div>
+    </footer>
+    <script src="/static/ext/js/jquery-3.2.1.slim.min.js"></script>
+    <script src="/static/ext/js/bootstrap.min.js"></script>
+</body>
+
+</html>

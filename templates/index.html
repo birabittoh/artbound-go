@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="it">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta name="description" content="Un modo semplice e veloce per gestire le fanart di ArtBound.">
+    <meta name="author" content="BiRabittoh">
+    <link rel="icon"
+        href='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>{{ .Emoji.Favicon }}</text></svg>'>
+    <title>ArtBound Panel</title>
+    <link href="/static/ext/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/static/style.css" rel="stylesheet">
+</head>
+
+<body>
+    <main role="main">
+        <section class="jumbotron text-center">
+            <div class="container">
+                <h1 class="jumbotron-heading">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                        class="feather feather-activity">
+                        <polygon points="14 2 18 6 7 17 3 17 3 13 14 2"></polygon>
+                        <line x1="3" y1="22" x2="21" y2="22"></line>
+                    </svg>
+                    ArtBound Panel
+                </h1>
+                <svg fill="white" version="1.1" id="Capa_1" xmlns="http://www.w3.org/2000/svg"
+                    xmlns:xlink="http://www.w3.org/1999/xlink" width="15" height="15" viewBox="0 0 420.827 420.827"
+                    xml:space="preserve">
+                    <g>
+                        <g>
+                            <path
+                                d="M210.29,0C156,0,104.43,20.693,65.077,58.269C25.859,95.715,2.794,146.022,0.134,199.921
+                                c-0.135,2.734,0.857,5.404,2.744,7.388c1.889,1.983,4.507,3.105,7.244,3.105h45.211c5.275,0,9.644-4.098,9.979-9.362
+                                c4.871-76.214,68.553-135.914,144.979-135.914c80.105,0,145.275,65.171,145.275,145.276c0,80.105-65.17,145.276-145.275,145.276
+                                c-18.109,0-35.772-3.287-52.501-9.771l17.366-15.425c2.686-2.354,3.912-5.964,3.217-9.468c-0.696-3.506-3.209-6.371-6.592-7.521
+                                l-113-32.552c-3.387-1.149-7.122-0.407-9.81,1.948c-2.686,2.354-3.913,5.963-3.218,9.467L69.71,403.157
+                                c0.696,3.505,3.209,6.372,6.591,7.521c3.383,1.147,7.122,0.408,9.81-1.946l18.599-16.298
+                                c31.946,18.574,68.456,28.394,105.581,28.394c116.021,0,210.414-94.392,210.414-210.414C420.705,94.391,326.312,0,210.29,0z" />
+                            <path d="M195.112,237.9h118.5c2.757,0,5-2.242,5-5v-30c0-2.757-2.243-5-5-5h-83.5v-91c0-2.757-2.243-5-5-5h-30
+                                c-2.757,0-5,2.243-5,5v126C190.112,235.658,192.355,237.9,195.112,237.9z" />
+                        </g>
+                    </g>
+                </svg>
+                <a id="last-updated-link" href="#" class="lead" onclick="updateDb();">{{ .LastUpdated }}</a>
+                <div id="month_div">
+                    <label for="month_input" style="margin-right: 10px;">Scegli il mese: </label>
+                    <input id="month_input" type="month" value="{{ .CurrentMonth }}">
+                    <button class="btn btn-secondary my-2" onclick="getArtworks();" id="get_button">{{ .Emoji.GetFirst }}</button>
+                </div>
+                <div id="controls" hidden>
+                    <a href="#" class="btn btn-secondary my-2" onclick="selectAllNone(1);" id="selectall_button">{{ .Emoji.SelectAll }}</a>
+                    <a href="#" class="btn btn-secondary my-2" onclick="selectAllNone(0);" id="selectnone_button">{{ .Emoji.SelectNone }}</a>
+                    <input type="range" class="form-range" id="opacity_range" min="0" max="1" step="0.01" oninput="updateOpacity();" value="0.4">
+                    <label for="opacity_range" class="form-label" id="opacity_label"></label>
+                    <a href="#" class="btn btn-secondary my-2" onclick="saveAll();" id="saveall_button">{{ .Emoji.Save }}</a>
+                    <a href="#" class="btn btn-secondary my-2" onclick="saveAllIG();" id="saveallig_button">{{ .Emoji.SaveIG }}</a>
+                </div>
+            </div>
+        </section>
+        <div class="album py-5" id="main_container" style="padding-bottom: 0px !important;">
+            <div class="container">
+                <div class="row" id="content"></div>
+                <div class="row text-row">
+                    <div class="col-md-12 text-center">
+                        <a href="/help" class="btn btn-primary">Info {{ .Emoji.Help }}</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    <footer>
+        <div class="container">
+            <p>&copy; <a href="https://linktr.ee/earthboundcafe">Earthbound Café</a>, realizzato da <a
+                    href="https://birabittoh.github.io/">BiRabittoh</a>.</p>
+        </div>
+    </footer>
+    <template id="fanart-template">
+        <div class="col-lg-4 entry{| disabled |}" id="{| id |}" data-index="{| index |}">
+            <div class="card mb-4 box-shadow my-card">
+                <canvas class="card-img-top entry-img" id="{| id |}" data-name="{| name |}" data-content="{| content |}"
+                    data-filename="{| filename |}"></canvas>
+                <div class="card-body">
+                    <a class="card-text" title="Clicca per copiare." onclick="navigator.clipboard.writeText(this.innerText);">{| filename |}</a>
+                    <div class="d-flex justify-content-between align-items-center card-controls">
+                        <div class="btn-group">
+                            <button class="btn btn-sm btn-outline-secondary" onclick="moveUpDown('{| id |}', -1);">{{ .Emoji.Prev }}</button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="toggleEntry('{| id |}');">{{ .Emoji.Toggle }}</button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="toggleInvert('{| id |}', this);">{{ .Emoji.Color }}</button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="rotateEntry('{| id |}');">{{ .Emoji.Rotate }}</button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="saveEntry('{| id |}');">{{ .Emoji.Save }}</button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="saveEntryIG('{| id |}');">{{ .Emoji.SaveIG }}</button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="moveUpDown('{| id |}', 1);">{{ .Emoji.Next }}</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </template>
+    <a id="canvas-download" hidden></a>
+    <canvas width="1080" height="1920" id="instagram-canvas" hidden></canvas>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mustache.js/2.3.0/mustache.min.js"></script>
+    <script src="/static/ext/js/jquery-3.2.1.slim.min.js"></script>
+    <script src="/static/ext/js/bootstrap.min.js"></script>
+    <script>
+        const emoji_color = '{{ .Emoji.Color }}';
+        const emoji_color_black = '{{ .Emoji.ColorBlack }}';
+        const emoji_get = '{{ .Emoji.Get }}';
+    </script>
+    <script src="/static/script.js"></script>
+</body>
+
+</html>

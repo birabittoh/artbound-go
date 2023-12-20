@@ -1,0 +1,113 @@
+:root {
+    --jumbotron-padding-y: 3rem;
+    /* Using Open Color 1.9.1: https://yeun.github.io/open-color/ */
+    --background0: #212529; /* GRAY 9 */
+    --background1: #343a40; /* GRAY 8 */
+    --accent: #1864ab; /* BLUE 9 */
+    --title: #339af0; /* BLUE 5 */
+    --text: #f8f9fa; /* GRAY 0 */
+  }
+  
+  .jumbotron {
+    padding-top: var(--jumbotron-padding-y);
+    padding-bottom: var(--jumbotron-padding-y);
+    margin-bottom: 0;
+    background-color: var(--background1);
+  }
+  @media (min-width: 768px) {
+    .jumbotron {
+      padding-top: calc(var(--jumbotron-padding-y) * 2);
+      padding-bottom: calc(var(--jumbotron-padding-y) * 2);
+    }
+  }
+  
+  .jumbotron p:last-child {
+    margin-bottom: 0;
+  }
+  
+  .jumbotron-heading {
+    font-weight: 300;
+    color: var(--title);
+  }
+  
+  .jumbotron .container {
+    max-width: 40rem;
+  }
+  
+  footer {
+    padding-top: 3rem;
+    padding-bottom: 3rem;
+  }
+  
+  footer p {
+    margin-bottom: .25rem;
+  }
+  
+  .box-shadow { box-shadow: 0 .25rem .75rem rgba(0, 0, 0, .05); }
+
+  .entry-disabled {
+    opacity: 0.25
+  }
+  
+#main_container, .jumbotron {
+	padding: 20px!important;
+}
+
+.card-controls {
+  flex-direction: row-reverse;
+}
+
+.card-text {
+  display: block;
+  padding-bottom: 10px;
+}
+
+body {
+  background-color: var(--background0);
+  color: var(--text);
+  color-scheme: dark;
+}
+
+.lead {
+  color: var(--text);
+}
+
+.btn-go {
+  color: var(--text);
+  background-color: var(--accent);
+  border-color: var(--accent);
+}
+
+a {
+  color: var(--text);
+  cursor: pointer;
+}
+a:hover {
+  color: var(--text);
+}
+
+.my-card{
+  background-color: var(--background1);
+}
+
+#opacity_range {
+  accent-color: var(--accent);
+}
+
+#month_input {
+  background-color: var(--background0);
+  color: var(--text);
+  color-scheme: dark;
+}
+
+.text-row {
+  margin-top: 20px;
+}
+
+footer a {
+  text-decoration: underline;
+}
+
+footer a:hover {
+  text-decoration: none;
+}
