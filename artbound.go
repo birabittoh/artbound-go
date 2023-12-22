@@ -114,7 +114,6 @@ func main() {
 	err := godotenv.Load()
 	if err != nil {
 		log.Println("No .env file provided.")
-		os.Exit(1)
 	}
 
 	port := os.Getenv("PORT")

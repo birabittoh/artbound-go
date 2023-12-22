@@ -1,0 +1,18 @@
+services:
+  app:
+    build: .
+    image: ghcr.io/birabittoh/artbound-go:main
+    container_name: artbound-go
+    restart: unless-stopped
+    ports:
+      - 3000:3000
+    environment:
+      - SPREADSHEET_ID=${SPREADSHEET_ID}
+      - SPREADSHEET_RANGE=${SPREADSHEET_RANGE}
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - ${PWD}/credentials.json:/app/credentials.json:ro
+      - ${PWD}/token.json:/app/token.json:ro
+      - cache:/app/static/res/cache/
+volumes:
+  cache:
