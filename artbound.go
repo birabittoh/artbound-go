@@ -91,21 +91,29 @@ func getHandler(db *cache.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		u, err := url.Parse(r.URL.String())
 		if err != nil {
-			log.Fatal("Could not parse URL.")
+			log.Println("Could not parse URL.")
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
 		month := u.Query().Get("month")
+		if month == "" {
+			http.Error(w, "\"month\" parameter is required.", http.StatusBadRequest)
+			return
+		}
 		entries, err := db.GetEntries(month)
 		if err != nil {
-			log.Fatal("Could not get entries for month", month)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, "Could not get entries.", http.StatusInternalServerError)
 			return
 		}
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
+
+		if len(entries) == 0 {
+			w.Write([]byte("[]"))
+			return
+		}
 		json.NewEncoder(w).Encode(entries)
 	}
 }
