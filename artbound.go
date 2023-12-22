@@ -2,14 +2,19 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"html/template"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"time"
 
 	"github.com/joho/godotenv"
 )
+
+var spreadsheetId string
+var spreadsheetRange string
 
 var templatesDirectory = "templates/"
 var indexTemplate = template.Must(template.ParseFiles(templatesDirectory + "index.html"))
@@ -21,11 +26,14 @@ type TemplateData struct {
 	CurrentMonth string
 }
 
-func indexHandler(w http.ResponseWriter, r *http.Request) {
-	switch method := r.Method; method {
-	case http.MethodGet:
-		// render template
-		lastUpdated := "last updated"
+func indexHandler(db *DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Please use GET.", http.StatusMethodNotAllowed)
+			return
+		}
+
+		lastUpdated := db.LastUpdated.Format("02/01/2006 15:04")
 		currentMonth := time.Now().Format("2006-01")
 		templateData := &TemplateData{defaultEmojis, lastUpdated, currentMonth}
 		buf := &bytes.Buffer{}
@@ -35,21 +43,6 @@ func indexHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		buf.WriteTo(w)
-	case http.MethodPost:
-		// render json
-		contentType := r.Header.Get("Content-Type")
-		err := r.ParseForm()
-		if err != nil {
-			log.Fatal("Could not parse form.")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		log.Println(contentType, r.Form.Get("month"))
-		http.Error(w, "WIP.", http.StatusMethodNotAllowed)
-		return
-	default:
-		http.Error(w, "Please use GET or POST.", http.StatusMethodNotAllowed)
-		return
 	}
 }
 
@@ -68,14 +61,55 @@ func helpHandler(w http.ResponseWriter, r *http.Request) {
 	buf.WriteTo(w)
 }
 
-func clearHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Please use POST.", http.StatusMethodNotAllowed)
-		return
+func clearHandler(db *DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Please use POST.", http.StatusMethodNotAllowed)
+			return
+		}
+		err := db.Clear()
+		if err != nil {
+			log.Fatal("Error:", err)
+			http.Error(w, "Could not delete cache.", http.StatusInternalServerError)
+		}
+		http.Error(w, "Done.", http.StatusOK)
 	}
+}
 
-	// TODO: actually clear cache
-	http.Error(w, "Done.", http.StatusOK)
+func updateHandler(googleApi *GoogleAPI, db *DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Please use POST.", http.StatusMethodNotAllowed)
+			return
+		}
+		p := db.UpdateCall()
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(p)
+	}
+}
+
+func getHandler(googleApi *GoogleAPI, db *DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		u, err := url.Parse(r.URL.String())
+		if err != nil {
+			log.Fatal("Could not parse URL.")
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		month := u.Query().Get("month")
+		entries, err := db.GetEntries(month)
+		if err != nil {
+			log.Fatal("Could not get entries for month", month)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(entries)
+	}
 }
 
 func main() {
@@ -89,12 +123,29 @@ func main() {
 		port = "3000"
 	}
 
+	spreadsheetId = os.Getenv("SPREADSHEET_ID")
+	if spreadsheetId == "" {
+		log.Fatal("Please fill out SPREADSHEET_ID in .env")
+		os.Exit(1)
+	}
+
+	spreadsheetRange = os.Getenv("SPREADSHEET_RANGE")
+	if spreadsheetRange == "" {
+		log.Fatal("Please fill out SPREADSHEET_RANGE in .env")
+		os.Exit(1)
+	}
+
 	fs := http.FileServer(http.Dir("./static"))
 
+	googleApi := initGoogleAPI()
+	db := initDB(googleApi)
+
 	r := http.NewServeMux()
-	r.HandleFunc("/", indexHandler)
+	r.HandleFunc("/", indexHandler(db))
+	r.HandleFunc("/clear", clearHandler(db))
 	r.HandleFunc("/help", helpHandler)
-	r.HandleFunc("/clear", clearHandler)
+	r.HandleFunc("/update", updateHandler(googleApi, db))
+	r.HandleFunc("/get", getHandler(googleApi, db))
 	r.Handle("/static/", http.StripPrefix("/static/", fs))
 
 	log.Println("Serving on port", port)

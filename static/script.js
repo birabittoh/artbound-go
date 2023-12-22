@@ -259,20 +259,22 @@ function getArtworks() {
 	if (months.has(month_value)) return;
 	get_button.disabled = true;
 	get_button.innerText = "🔄"
-	postData("/", { month: month_value }).then((data) => {
-		fanarts.push(...data.map((element) => {
-			return {
-				...element,
-				"enabled": 1,
-				"rotated": 0,
-				"watermark": { invert: "" },
-			};
-		}));
-		controls_div.hidden = false;
-		updateOpacity();
-		updateFanartList();
-		months.add(month_value);
-	});
+	fetch("/get?month=" + month_value).then((res) => {
+		res.json().then((data) => {
+			fanarts.push(...data.map((element) => {
+				return {
+					...element,
+					"enabled": 1,
+					"rotated": 0,
+					"watermark": { invert: "" },
+				};
+			}));
+			controls_div.hidden = false;
+			updateOpacity();
+			updateFanartList();
+			months.add(month_value);
+		})
+	})
 }
 
 function saveAll() {
