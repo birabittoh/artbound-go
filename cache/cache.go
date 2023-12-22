@@ -88,7 +88,7 @@ func handleEntry(entry *Entry, db *DB) string {
 	log.Println(entry.FileID, "is not cached. Downloading.")
 	ext, err := getFile(&db.googleApi, entry.FileID, cachePath)
 	if err != nil {
-		log.Fatal("Could not download file", entry.FileID)
+		log.Println("Could not download file", entry.FileID)
 	}
 	return ext
 }
@@ -96,7 +96,7 @@ func handleEntry(entry *Entry, db *DB) string {
 func InitDB(spreadsheetId string, spreadsheetRange string) *DB {
 	files, err := listCachedEntries(cachePath)
 	if err != nil {
-		log.Fatal("Could not list cached entries.")
+		log.Println("Could not list cached entries.")
 	}
 	googleApi := initGoogleAPI(spreadsheetId, spreadsheetRange)
 	db := &DB{time.Now(), []Entry{}, files, *googleApi}
@@ -107,7 +107,7 @@ func InitDB(spreadsheetId string, spreadsheetRange string) *DB {
 func (db *DB) update() (error, int) {
 	entries, err := getEntries(&db.googleApi)
 	if err != nil {
-		log.Fatal("Could not update DB!", err)
+		log.Println("Could not update DB!", err)
 		return err, 0
 	}
 	newEntries := len(entries) - len(db.Entries)
@@ -119,7 +119,7 @@ func (db *DB) update() (error, int) {
 func (db *DB) UpdateCall() UpdateDBPayload {
 	err, newEntries := db.update()
 	if err != nil {
-		log.Fatal("Could not update DB!", err)
+		log.Println("Could not update DB!", err)
 		newEntries = 0
 	}
 	return UpdateDBPayload{db.LastUpdated.Format("02/01/2006 15:04"), newEntries}

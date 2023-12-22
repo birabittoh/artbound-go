@@ -67,7 +67,7 @@ func clearHandler(db *cache.DB) http.HandlerFunc {
 		}
 		err := db.Clear()
 		if err != nil {
-			log.Fatal("Error:", err)
+			log.Println("Error:", err)
 			http.Error(w, "Could not delete cache.", http.StatusInternalServerError)
 		}
 		http.Error(w, "Done.", http.StatusOK)
@@ -132,13 +132,11 @@ func main() {
 	spreadsheetId := os.Getenv("SPREADSHEET_ID")
 	if spreadsheetId == "" {
 		log.Fatal("Please fill out SPREADSHEET_ID in .env")
-		os.Exit(1)
 	}
 
 	spreadsheetRange := os.Getenv("SPREADSHEET_RANGE")
 	if spreadsheetRange == "" {
 		log.Fatal("Please fill out SPREADSHEET_RANGE in .env")
-		os.Exit(1)
 	}
 
 	fs := http.FileServer(http.Dir("./static"))
