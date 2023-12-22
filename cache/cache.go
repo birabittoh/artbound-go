@@ -78,6 +78,21 @@ func isCached(cachedEntries []fileDetails, target string) (bool, string) {
 	return false, ""
 }
 
+func handleEntry(entry *Entry, db *DB) string {
+	isFileCached, ext := isCached(db.cachedEntries, entry.FileID)
+
+	if isFileCached {
+		log.Println(entry.FileID, "is cached.")
+		return ext
+	}
+	log.Println(entry.FileID, "is not cached. Downloading.")
+	ext, err := getFile(&db.googleApi, entry.FileID, cachePath)
+	if err != nil {
+		log.Fatal("Could not download file", entry.FileID)
+	}
+	return ext
+}
+
 func InitDB(spreadsheetId string, spreadsheetRange string) *DB {
 	files, err := listCachedEntries(cachePath)
 	if err != nil {
@@ -120,18 +135,8 @@ func (db *DB) GetEntries(month string) ([]Entry, error) {
 
 	for i := range res {
 		e := &res[i]
-		isFileCached, ext := isCached(db.cachedEntries, e.FileID)
-		if isFileCached {
-			log.Println(e.FileID, "is cached.")
-			e.FilePath = filepath.Join(cachePath, e.FileID+ext)
-		} else {
-			log.Println(e.FileID, "is not cached. Downloading.")
-			ext, err := getFile(&db.googleApi, e.FileID, cachePath)
-			if err != nil {
-				log.Fatal("Could not download file", e.FileID)
-			}
-			e.FilePath = filepath.Join(cachePath, e.FileID+ext)
-		}
+		ext := handleEntry(e, db)
+		e.FilePath = filepath.Join(cachePath, e.FileID+ext)
 	}
 
 	return res, nil
