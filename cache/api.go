@@ -1,4 +1,4 @@
-package main
+package cache
 
 import (
 	"context"
@@ -20,8 +20,10 @@ import (
 )
 
 type GoogleAPI struct {
-	Ctx    context.Context
-	Client *http.Client
+	Ctx              context.Context
+	Client           *http.Client
+	spreadsheetId    string
+	spreadsheetRange string
 }
 
 type Entry struct {
@@ -86,7 +88,7 @@ func saveToken(path string, token *oauth2.Token) {
 	json.NewEncoder(f).Encode(token)
 }
 
-func initGoogleAPI() *GoogleAPI {
+func initGoogleAPI(spreadsheetId string, spreadsheetRange string) *GoogleAPI {
 	ctx := context.Background()
 	b, err := os.ReadFile("credentials.json")
 	if err != nil {
@@ -99,7 +101,7 @@ func initGoogleAPI() *GoogleAPI {
 		log.Fatalf("Unable to parse client secret file to config: %v", err)
 	}
 	client := getClient(config)
-	return &GoogleAPI{ctx, client}
+	return &GoogleAPI{ctx, client, spreadsheetId, spreadsheetRange}
 }
 
 func getEntries(googleApi *GoogleAPI) ([]Entry, error) {
@@ -109,7 +111,7 @@ func getEntries(googleApi *GoogleAPI) ([]Entry, error) {
 		return nil, err
 	}
 
-	resp, err := srv.Spreadsheets.Values.Get(spreadsheetId, spreadsheetRange).Do()
+	resp, err := srv.Spreadsheets.Values.Get(googleApi.spreadsheetId, googleApi.spreadsheetRange).Do()
 	if err != nil {
 		log.Fatalf("Unable to retrieve data from sheet: %v", err)
 		return nil, err

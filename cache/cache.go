@@ -1,4 +1,4 @@
-package main
+package cache
 
 import (
 	"fmt"
@@ -19,20 +19,71 @@ type UpdateDBPayload struct {
 type DB struct {
 	LastUpdated   time.Time
 	Entries       []Entry
-	cachedEntries []FileDetails
+	cachedEntries []fileDetails
 	googleApi     GoogleAPI
 }
 
-type FileDetails struct {
+type fileDetails struct {
 	FileName  string
 	Extension string
 }
 
-func initDB(googleApi *GoogleAPI) *DB {
+func filter[T any](ss []T, test func(T) bool) (ret []T) {
+	for _, s := range ss {
+		if test(s) {
+			ret = append(ret, s)
+		}
+	}
+	return
+}
+
+func listCachedEntries(cachePath string) ([]fileDetails, error) {
+	var files []fileDetails
+
+	err := filepath.Walk(cachePath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if info.IsDir() {
+			return nil // Skip directories
+		}
+
+		fileName := info.Name()
+		extension := filepath.Ext(fileName)
+		fileNameWithoutExt := strings.TrimSuffix(fileName, extension)
+
+		file := fileDetails{
+			FileName:  fileNameWithoutExt,
+			Extension: extension,
+		}
+
+		files = append(files, file)
+		return nil
+	})
+
+	if err != nil {
+		return []fileDetails{}, err
+	}
+
+	return files, nil
+}
+
+func isCached(cachedEntries []fileDetails, target string) (bool, string) {
+	for _, file := range cachedEntries {
+		if file.FileName == target {
+			return true, file.Extension
+		}
+	}
+	return false, ""
+}
+
+func InitDB(spreadsheetId string, spreadsheetRange string) *DB {
 	files, err := listCachedEntries(cachePath)
 	if err != nil {
 		log.Fatal("Could not list cached entries.")
 	}
+	googleApi := initGoogleAPI(spreadsheetId, spreadsheetRange)
 	db := &DB{time.Now(), []Entry{}, files, *googleApi}
 	db.update()
 	return db
@@ -57,56 +108,6 @@ func (db *DB) UpdateCall() UpdateDBPayload {
 		newEntries = 0
 	}
 	return UpdateDBPayload{db.LastUpdated.Format("02/01/2006 15:04"), newEntries}
-}
-
-func filter[T any](ss []T, test func(T) bool) (ret []T) {
-	for _, s := range ss {
-		if test(s) {
-			ret = append(ret, s)
-		}
-	}
-	return
-}
-
-func listCachedEntries(cachePath string) ([]FileDetails, error) {
-	var files []FileDetails
-
-	err := filepath.Walk(cachePath, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		if info.IsDir() {
-			return nil // Skip directories
-		}
-
-		fileName := info.Name()
-		extension := filepath.Ext(fileName)
-		fileNameWithoutExt := strings.TrimSuffix(fileName, extension)
-
-		file := FileDetails{
-			FileName:  fileNameWithoutExt,
-			Extension: extension,
-		}
-
-		files = append(files, file)
-		return nil
-	})
-
-	if err != nil {
-		return []FileDetails{}, err
-	}
-
-	return files, nil
-}
-
-func isCached(cachedEntries []FileDetails, target string) (bool, string) {
-	for _, file := range cachedEntries {
-		if file.FileName == target {
-			return true, file.Extension
-		}
-	}
-	return false, ""
 }
 
 func (db *DB) GetEntries(month string) ([]Entry, error) {
@@ -156,6 +157,6 @@ func (db *DB) Clear() error {
 	if err != nil {
 		return err
 	}
-	db.cachedEntries = []FileDetails{}
+	db.cachedEntries = []fileDetails{}
 	return nil
 }

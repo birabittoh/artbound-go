@@ -10,11 +10,9 @@ import (
 	"os"
 	"time"
 
+	"github.com/BiRabittoh/artbound-go/cache"
 	"github.com/joho/godotenv"
 )
-
-var spreadsheetId string
-var spreadsheetRange string
 
 var templatesDirectory = "templates/"
 var indexTemplate = template.Must(template.ParseFiles(templatesDirectory + "index.html"))
@@ -26,7 +24,7 @@ type TemplateData struct {
 	CurrentMonth string
 }
 
-func indexHandler(db *DB) http.HandlerFunc {
+func indexHandler(db *cache.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "Please use GET.", http.StatusMethodNotAllowed)
@@ -61,7 +59,7 @@ func helpHandler(w http.ResponseWriter, r *http.Request) {
 	buf.WriteTo(w)
 }
 
-func clearHandler(db *DB) http.HandlerFunc {
+func clearHandler(db *cache.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Please use POST.", http.StatusMethodNotAllowed)
@@ -76,7 +74,7 @@ func clearHandler(db *DB) http.HandlerFunc {
 	}
 }
 
-func updateHandler(googleApi *GoogleAPI, db *DB) http.HandlerFunc {
+func updateHandler(db *cache.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			http.Error(w, "Please use POST.", http.StatusMethodNotAllowed)
@@ -89,7 +87,7 @@ func updateHandler(googleApi *GoogleAPI, db *DB) http.HandlerFunc {
 	}
 }
 
-func getHandler(googleApi *GoogleAPI, db *DB) http.HandlerFunc {
+func getHandler(db *cache.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		u, err := url.Parse(r.URL.String())
 		if err != nil {
@@ -116,6 +114,7 @@ func main() {
 	err := godotenv.Load()
 	if err != nil {
 		log.Println("No .env file provided.")
+		os.Exit(1)
 	}
 
 	port := os.Getenv("PORT")
@@ -123,29 +122,27 @@ func main() {
 		port = "3000"
 	}
 
-	spreadsheetId = os.Getenv("SPREADSHEET_ID")
+	spreadsheetId := os.Getenv("SPREADSHEET_ID")
 	if spreadsheetId == "" {
 		log.Fatal("Please fill out SPREADSHEET_ID in .env")
 		os.Exit(1)
 	}
 
-	spreadsheetRange = os.Getenv("SPREADSHEET_RANGE")
+	spreadsheetRange := os.Getenv("SPREADSHEET_RANGE")
 	if spreadsheetRange == "" {
 		log.Fatal("Please fill out SPREADSHEET_RANGE in .env")
 		os.Exit(1)
 	}
 
 	fs := http.FileServer(http.Dir("./static"))
-
-	googleApi := initGoogleAPI()
-	db := initDB(googleApi)
+	db := cache.InitDB(spreadsheetId, spreadsheetRange)
 
 	r := http.NewServeMux()
 	r.HandleFunc("/", indexHandler(db))
 	r.HandleFunc("/clear", clearHandler(db))
+	r.HandleFunc("/update", updateHandler(db))
+	r.HandleFunc("/get", getHandler(db))
 	r.HandleFunc("/help", helpHandler)
-	r.HandleFunc("/update", updateHandler(googleApi, db))
-	r.HandleFunc("/get", getHandler(googleApi, db))
 	r.Handle("/static/", http.StripPrefix("/static/", fs))
 
 	log.Println("Serving on port", port)
