@@ -1,6 +1,6 @@
 # artbound-go
 
-A client-server reimplementation of the administration panel for ArtBound.
+A golang reimplementation of the administration panel for ArtBound.
 
 ## Configuration
 1. Copy `.env.example` into `.env` and fill it out with your Sheets ID and Range;
