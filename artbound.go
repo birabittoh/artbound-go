@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"embed"
 	"encoding/json"
 	"html/template"
 	"log"
@@ -14,9 +15,16 @@ import (
 	"github.com/joho/godotenv"
 )
 
-var templatesDirectory = "templates/"
-var indexTemplate = template.Must(template.ParseFiles(templatesDirectory + "index.html"))
-var helpTemplate = template.Must(template.ParseFiles(templatesDirectory + "help.html"))
+const templatesDirectory = "templates/"
+
+var (
+	//go:embed templates/index.html templates/help.html
+	templates embed.FS
+	//go:embed all:static
+	static        embed.FS
+	indexTemplate = template.Must(template.ParseFS(templates, templatesDirectory+"index.html"))
+	helpTemplate  = template.Must(template.ParseFS(templates, templatesDirectory+"help.html"))
+)
 
 type TemplateData struct {
 	Emoji        EmojiDict
@@ -139,7 +147,10 @@ func main() {
 		log.Fatal("Please fill out SPREADSHEET_RANGE in .env")
 	}
 
-	fs := http.FileServer(http.Dir("./static"))
+	cacheRemotePath := "/" + cache.CachePath + "/"
+	cacheFS := http.FileServer(http.Dir(cache.CachePath))
+
+	fs := http.FileServer(http.FS(static))
 	db := cache.InitDB(spreadsheetId, spreadsheetRange)
 
 	r := http.NewServeMux()
@@ -148,7 +159,8 @@ func main() {
 	r.HandleFunc("/update", updateHandler(db))
 	r.HandleFunc("/get", getHandler(db))
 	r.HandleFunc("/help", helpHandler)
-	r.Handle("/static/", http.StripPrefix("/static/", fs))
+	r.Handle("/static/", fs)
+	r.Handle(cacheRemotePath, http.StripPrefix(cacheRemotePath, cacheFS))
 
 	log.Println("Serving on port", port)
 	err = http.ListenAndServe(":"+port, r)

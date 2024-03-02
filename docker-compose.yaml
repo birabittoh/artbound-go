@@ -13,6 +13,6 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - ${PWD}/credentials.json:/app/credentials.json:ro
       - ${PWD}/token.json:/app/token.json:ro
-      - cache:/app/static/res/cache/
+      - cache:/app/art/
 volumes:
   cache:

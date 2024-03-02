@@ -16,8 +16,6 @@ COPY *.go ./
 
 # Build
 RUN CGO_ENABLED=0 go build -trimpath -o /dist/app
-COPY templates /dist/templates
-COPY static /dist/static
 
 # Test
 FROM build-stage AS run-test-stage

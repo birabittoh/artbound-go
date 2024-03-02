@@ -131,7 +131,7 @@ func getEntries(googleApi *GoogleAPI) ([]Entry, error) {
 	return rows, nil
 }
 
-func getFile(googleApi *GoogleAPI, fileID string, cachePath string) (string, error) {
+func getFile(googleApi *GoogleAPI, fileID string, CachePath string) (string, error) {
 	srv, err := drive.NewService(googleApi.Ctx, option.WithHTTPClient(googleApi.Client))
 	if err != nil {
 		log.Fatalf("Unable to retrieve Drive client: %v", err)
@@ -144,7 +144,7 @@ func getFile(googleApi *GoogleAPI, fileID string, cachePath string) (string, err
 	fileExt := filepath.Ext(fileInfo.Name)
 
 	fileName := fileID + fileExt
-	filePath := filepath.Join(cachePath, fileName)
+	filePath := filepath.Join(CachePath, fileName)
 	out, err := os.Create(filePath)
 	if err != nil {
 		return "", err

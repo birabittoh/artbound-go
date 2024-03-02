@@ -1,6 +1,6 @@
 .env
 __debug_bin*
-static/res/cache
+art
 credentials.json
 token.json
 dist

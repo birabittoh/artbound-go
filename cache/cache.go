@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-var cachePath = filepath.Join("static", "res", "cache")
+const CachePath = "art"
 
 type UpdateDBPayload struct {
 	LastUpdated string `json:"timestamp"`
@@ -37,10 +37,10 @@ func filter[T any](ss []T, test func(T) bool) (ret []T) {
 	return
 }
 
-func listCachedEntries(cachePath string) ([]fileDetails, error) {
+func listCachedEntries(CachePath string) ([]fileDetails, error) {
 	var files []fileDetails
 
-	err := filepath.Walk(cachePath, func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(CachePath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -86,7 +86,7 @@ func handleEntry(entry *Entry, db *DB) string {
 		return ext
 	}
 	log.Println(entry.FileID, "is not cached. Downloading.")
-	ext, err := getFile(&db.googleApi, entry.FileID, cachePath)
+	ext, err := getFile(&db.googleApi, entry.FileID, CachePath)
 	if err != nil {
 		log.Println("Could not download file", entry.FileID)
 	}
@@ -94,7 +94,7 @@ func handleEntry(entry *Entry, db *DB) string {
 }
 
 func InitDB(spreadsheetId string, spreadsheetRange string) *DB {
-	files, err := listCachedEntries(cachePath)
+	files, err := listCachedEntries(CachePath)
 	if err != nil {
 		log.Println("Could not list cached entries.")
 	}
@@ -104,20 +104,20 @@ func InitDB(spreadsheetId string, spreadsheetRange string) *DB {
 	return db
 }
 
-func (db *DB) update() (error, int) {
+func (db *DB) update() (int, error) {
 	entries, err := getEntries(&db.googleApi)
 	if err != nil {
 		log.Println("Could not update DB!", err)
-		return err, 0
+		return 0, err
 	}
 	newEntries := len(entries) - len(db.Entries)
 	db.Entries = entries
 	db.LastUpdated = time.Now()
-	return nil, newEntries
+	return newEntries, nil
 }
 
 func (db *DB) UpdateCall() UpdateDBPayload {
-	err, newEntries := db.update()
+	newEntries, err := db.update()
 	if err != nil {
 		log.Println("Could not update DB!", err)
 		newEntries = 0
@@ -129,21 +129,21 @@ func (db *DB) GetEntries(month string) ([]Entry, error) {
 	monthTest := func(f Entry) bool { return f.Month == month }
 	res := filter(db.Entries, monthTest)
 
-	if err := os.MkdirAll(cachePath, os.ModePerm); err != nil {
+	if err := os.MkdirAll(CachePath, os.ModePerm); err != nil {
 		return nil, err
 	}
 
 	for i := range res {
 		e := &res[i]
 		ext := handleEntry(e, db)
-		e.FilePath = filepath.Join(cachePath, e.FileID+ext)
+		e.FilePath = filepath.Join(CachePath, e.FileID+ext)
 	}
 
 	return res, nil
 }
 
 func (db *DB) Clear() error {
-	err := filepath.Walk(cachePath, func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(CachePath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
