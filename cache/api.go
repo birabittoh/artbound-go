@@ -30,6 +30,7 @@ type Entry struct {
 	FileID   string `json:"id"`
 	Month    string `json:"date"`
 	Name     string `json:"name"`
+	FileName string `json:"filename"`
 	FilePath string `json:"content"`
 }
 
@@ -126,7 +127,13 @@ func getEntries(googleApi *GoogleAPI) ([]Entry, error) {
 			log.Println("Error while parsing the following time and date string:", dateString)
 			date = time.Now()
 		}
-		rows[i] = Entry{row[3].(string)[33:], date.Format("2006-01"), row[1].(string), ""}
+		rows[i] = Entry{
+			FileID:   row[3].(string)[33:],
+			Month:    date.Format("2006-01"),
+			Name:     row[1].(string),
+			FileName: "",
+			FilePath: "",
+		}
 	}
 	return rows, nil
 }
@@ -141,9 +148,8 @@ func getFile(googleApi *GoogleAPI, fileID string, CachePath string) (string, err
 	if err != nil {
 		return "", err
 	}
-	fileExt := filepath.Ext(fileInfo.Name)
 
-	fileName := fileID + fileExt
+	fileName := fileID + filenameSeparator + fileInfo.Name
 	filePath := filepath.Join(CachePath, fileName)
 	out, err := os.Create(filePath)
 	if err != nil {
@@ -162,5 +168,5 @@ func getFile(googleApi *GoogleAPI, fileID string, CachePath string) (string, err
 		return "", err
 	}
 
-	return fileExt, nil
+	return fileName, nil
 }

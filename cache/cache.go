@@ -9,7 +9,10 @@ import (
 	"time"
 )
 
-const CachePath = "art"
+const (
+	CachePath         = "art"
+	filenameSeparator = "-_-_-_-_-_"
+)
 
 type UpdateDBPayload struct {
 	LastUpdated string `json:"timestamp"`
@@ -24,8 +27,9 @@ type DB struct {
 }
 
 type fileDetails struct {
-	FileName  string
-	Extension string
+	FileName         string
+	OriginalFileName string
+	Extension        string
 }
 
 func filter[T any](ss []T, test func(T) bool) (ret []T) {
@@ -52,10 +56,12 @@ func listCachedEntries(CachePath string) ([]fileDetails, error) {
 		fileName := info.Name()
 		extension := filepath.Ext(fileName)
 		fileNameWithoutExt := strings.TrimSuffix(fileName, extension)
+		originalFileName := strings.Split(fileNameWithoutExt, filenameSeparator)[1]
 
 		file := fileDetails{
-			FileName:  fileNameWithoutExt,
-			Extension: extension,
+			FileName:         fileNameWithoutExt,
+			OriginalFileName: originalFileName,
+			Extension:        extension,
 		}
 
 		files = append(files, file)
@@ -71,26 +77,27 @@ func listCachedEntries(CachePath string) ([]fileDetails, error) {
 
 func isCached(cachedEntries []fileDetails, target string) (bool, string) {
 	for _, file := range cachedEntries {
-		if file.FileName == target {
-			return true, file.Extension
+		fileId := strings.Split(file.FileName, filenameSeparator)[0]
+		if fileId == target {
+			return true, file.FileName + file.Extension
 		}
 	}
 	return false, ""
 }
 
 func handleEntry(entry *Entry, db *DB) string {
-	isFileCached, ext := isCached(db.cachedEntries, entry.FileID)
+	isFileCached, fileName := isCached(db.cachedEntries, entry.FileID)
 
 	if isFileCached {
 		log.Println(entry.FileID, "is cached.")
-		return ext
+		return fileName
 	}
 	log.Println(entry.FileID, "is not cached. Downloading.")
-	ext, err := getFile(&db.googleApi, entry.FileID, CachePath)
+	fileName, err := getFile(&db.googleApi, entry.FileID, CachePath)
 	if err != nil {
 		log.Println("Could not download file", entry.FileID)
 	}
-	return ext
+	return fileName
 }
 
 func InitDB(spreadsheetId string, spreadsheetRange string) *DB {
@@ -135,8 +142,9 @@ func (db *DB) GetEntries(month string) ([]Entry, error) {
 
 	for i := range res {
 		e := &res[i]
-		ext := handleEntry(e, db)
-		e.FilePath = filepath.Join(CachePath, e.FileID+ext)
+		fileName := handleEntry(e, db)
+		e.FilePath = filepath.Join(CachePath, fileName)
+		e.FileName = strings.Split(fileName, filenameSeparator)[1]
 	}
 
 	return res, nil

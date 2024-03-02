@@ -62,13 +62,14 @@ function createElementFromHTML(htmlString) {
 }
 
 function getNewCardHtml(element) {
+	originalFileName = element.filename.split
 	const id = element.id,
 		index = element.index,
 		name = element.name,
 		content = element.content,
-		filename = `${('0' + element.index).slice(-2)} - ${element.name}.png`,
+		text = `${element.name} → “${element.filename}”`,
 		disabled = element.enabled == 0 ? " entry-disabled" : "";
-	const html_string = Mustache.render("{{={| |}=}}" + fanart_template, { id, index, name, content, filename, disabled });
+	const html_string = Mustache.render("{{={| |}=}}" + fanart_template, { id, index, name, content, text, disabled });
 	element.div = createElementFromHTML(html_string);
 	element.canvas = element.div.getElementsByTagName("canvas")[0];
 	const ctx = element.canvas.getContext("2d");
@@ -302,4 +303,10 @@ function updateDb() {
 		new_entries += data.new;
 		last_updated_link.innerText += ` (+${ new_entries })`;
 	});
+}
+
+function toClipBoard(id) {
+	const fanart = getFanart(id);
+	const clipboard_filename = `${('0' + fanart.index).slice(-2)} - ${fanart.name}.png`;
+	navigator.clipboard.writeText(clipboard_filename);
 }
