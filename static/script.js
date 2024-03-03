@@ -68,8 +68,9 @@ function getNewCardHtml(element) {
 		name = element.name,
 		content = element.content,
 		text = `${element.name} → “${element.filename}”`,
-		disabled = element.enabled == 0 ? " entry-disabled" : "";
-	const html_string = Mustache.render("{{={| |}=}}" + fanart_template, { id, index, name, content, text, disabled });
+		disabled = element.enabled == 0 ? " entry-disabled" : "",
+		save_filename = `${('0' + index).slice(-2)} - ${name}.png`;
+	const html_string = Mustache.render("{{={| |}=}}" + fanart_template, { id, index, name, content, text, disabled, save_filename });
 	element.div = createElementFromHTML(html_string);
 	element.canvas = element.div.getElementsByTagName("canvas")[0];
 	const ctx = element.canvas.getContext("2d");
@@ -307,6 +308,5 @@ function updateDb() {
 
 function toClipBoard(id) {
 	const fanart = getFanart(id);
-	const clipboard_filename = `${('0' + fanart.index).slice(-2)} - ${fanart.name}.png`;
-	navigator.clipboard.writeText(clipboard_filename);
+	navigator.clipboard.writeText(fanart.canvas.getAttribute("data-filename"));
 }
