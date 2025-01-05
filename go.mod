@@ -1,4 +1,4 @@
-module github.com/BiRabittoh/artbound-go
+module github.com/birabittoh/artbound-go
 
 go 1.21.5
 

@@ -11,7 +11,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/BiRabittoh/artbound-go/cache"
+	"github.com/birabittoh/artbound-go/cache"
 	"github.com/joho/godotenv"
 )
 
