@@ -24,34 +24,52 @@ const MAX_WIDTH = MAX_HEIGHT = 1000,
 	canvas_link = document.getElementById("canvas-download"),
 	canvas_ig = document.getElementById("instagram-canvas"),
 	fanart_template = document.getElementById("fanart-template").innerHTML,
-	radians_factor = 90 * Math.PI / 180;
+	radians_factor = 90 * Math.PI / 180,
+	GIF_EXTENSIONS = new Set(["gif"]),
+	VIDEO_EXTENSIONS = new Set(["mp4", "m4v", "mov", "webm", "ogv", "mkv"]),
+	VIDEO_FPS = 30,
+	VIDEO_MIME = [
+		"video/mp4;codecs=avc1.640028,mp4a.40.2",
+		"video/mp4;codecs=avc1,mp4a",
+		"video/mp4",
+		"video/webm;codecs=vp9,opus",
+		"video/webm;codecs=vp8,opus",
+		"video/webm",
+	].find(t => window.MediaRecorder && MediaRecorder.isTypeSupported(t)),
+	VIDEO_EXT = VIDEO_MIME && VIDEO_MIME.startsWith("video/mp4") ? "mp4" : "webm";
 
-let	new_entries = 0;
+let	new_entries = 0,
+	audio_ctx = null;
 
 WATERMARK.src = WATERMARK_SRC;
 IG_TEMPLATE.src = IG_TEMPLATE_SRC;
 month_input.addEventListener("keyup", (e) => { if (e.key === "Enter") getArtworks(); });
 
-function addCanvasEvents(element, ctx) {
-	function abc(e) {
+function addCanvasEvents(element) {
+	const c = element.canvas;
+	function place(e) {
 		if (element.enabled == 0) return;
 		if (e.button != 0) return;
 		element.watermark.opacity = opacity_range.value;
-		addWatermark(e, element, ctx);
+		[element.watermark.x, element.watermark.y] = clickCoordsToCanvas(e.clientX, e.clientY, c);
+		element.hovering = true;
+		renderEntry(element);
 	}
 	if (element.clicked) {
-		element.canvas.addEventListener('mousedown', abc);
+		c.addEventListener('mousedown', place);
 		return;
 	}
-	element.canvas.addEventListener('mousemove', abc);
-	element.canvas.addEventListener('mouseleave', () => {
+	c.addEventListener('mousemove', place);
+	c.addEventListener('mouseleave', () => {
+		element.hovering = false;
 		if (!element.clicked && element.enabled)
-			setBaseImage(element);
+			renderEntry(element);
 	});
-	element.canvas.addEventListener('mousedown', (e) => {
+	c.addEventListener('mousedown', (e) => {
 		element.clicked = true;
-		element.canvas.removeEventListener('mousemove', abc);
-		element.canvas.addEventListener('mousedown', abc);
+		place(e);
+		c.removeEventListener('mousemove', place);
+		c.addEventListener('mousedown', place);
 	});
 }
 
@@ -61,28 +79,138 @@ function createElementFromHTML(htmlString) {
 	return div.firstChild;
 }
 
+function getMediaKind(path) {
+	const ext = path.split(".").pop().toLowerCase();
+	if (GIF_EXTENSIONS.has(ext)) return "gif";
+	if (VIDEO_EXTENSIONS.has(ext)) return "video";
+	return "image";
+}
+
+function isAnimated(element) {
+	return element.media ? element.media.animated : element.kind != "image";
+}
+
+function getSaveFilename(element) {
+	const ext = isAnimated(element) && VIDEO_MIME ? VIDEO_EXT : "png";
+	return `${('0' + element.index).slice(-2)} - ${element.name}.${ext}`;
+}
+
+function loadImage(element) {
+	return new Promise((resolve, reject) => {
+		const img = new Image();
+		img.addEventListener("load", () => resolve({ animated: false, source: img, width: img.width, height: img.height }));
+		img.addEventListener("error", reject);
+		img.src = element.content;
+	});
+}
+
+function loadVideo(element) {
+	return new Promise((resolve, reject) => {
+		const video = document.createElement("video");
+		video.muted = true;
+		video.loop = true;
+		video.playsInline = true;
+		video.preload = "auto";
+		video.addEventListener("loadeddata", () => {
+			video.play().catch(() => {});
+			resolve({
+				animated: true,
+				source: video,
+				width: video.videoWidth,
+				height: video.videoHeight,
+				get duration() { return isFinite(video.duration) ? video.duration * 1000 : 10000; },
+				restart: () => new Promise((res) => {
+					video.addEventListener("seeked", res, { once: true });
+					video.currentTime = 0;
+					video.play().catch(() => {});
+				}),
+			});
+		}, { once: true });
+		video.addEventListener("error", reject, { once: true });
+		video.src = element.content;
+	});
+}
+
+async function loadGif(element) {
+	if (!("ImageDecoder" in window) || !(await ImageDecoder.isTypeSupported("image/gif")))
+		return loadImage(element); // fallback: first frame only
+
+	const data = await (await fetch(element.content)).arrayBuffer();
+	const decoder = new ImageDecoder({ data, type: "image/gif" });
+	await decoder.tracks.ready;
+	const count = decoder.tracks.selectedTrack.frameCount;
+	if (count <= 1) {
+		decoder.close();
+		return loadImage(element);
+	}
+
+	const frames = [];
+	let width, height, total = 0;
+	for (let i = 0; i < count; i++) {
+		const { image } = await decoder.decode({ frameIndex: i });
+		if (width === undefined) {
+			const f = Math.min(1, getFactor(image.displayWidth, image.displayHeight, MAX_WIDTH, MAX_HEIGHT));
+			width = Math.ceil(image.displayWidth * f);
+			height = Math.ceil(image.displayHeight * f);
+		}
+		const bitmap = await createImageBitmap(image, { resizeWidth: width, resizeHeight: height, resizeQuality: "high" });
+		// browsers treat very short frame delays as 100ms
+		let duration = (image.duration || 0) / 1000;
+		if (duration <= 10) duration = 100;
+		image.close();
+		frames.push({ bitmap, end: total + duration });
+		total += duration;
+	}
+	decoder.close();
+
+	const media = {
+		animated: true,
+		width,
+		height,
+		duration: total,
+		start: performance.now(),
+		get source() {
+			const t = (performance.now() - media.start) % total;
+			return (frames.find(f => t < f.end) || frames[frames.length - 1]).bitmap;
+		},
+		restart: async () => { media.start = performance.now(); },
+	};
+	return media;
+}
+
+function loadMedia(element) {
+	const fallback = (e) => {
+		if (element.kind == "video") throw e;
+		console.warn("Could not load as image, trying as video:", element.content);
+		element.kind = "video";
+		return loadVideo(element);
+	};
+	switch (element.kind) {
+		case "video": return loadVideo(element);
+		case "gif": return loadGif(element).catch(fallback);
+		default: return loadImage(element).catch(fallback);
+	}
+}
+
 function getNewCardHtml(element) {
-	originalFileName = element.filename.split
 	const id = element.id,
 		index = element.index,
 		name = element.name,
 		content = element.content,
 		text = `${element.name} → “${element.filename}”`,
 		disabled = element.enabled == 0 ? " entry-disabled" : "",
-		save_filename = `${('0' + index).slice(-2)} - ${name}.png`;
+		save_filename = getSaveFilename(element);
 	const html_string = Mustache.render("{{={| |}=}}" + fanart_template, { id, index, name, content, text, disabled, save_filename });
 	element.div = createElementFromHTML(html_string);
-	element.canvas = element.div.getElementsByTagName("canvas")[0];
-	const ctx = element.canvas.getContext("2d");
-	element.image = new Image();
-	element.image.addEventListener("load", () => {
-		const wm_info = element.watermark;
-		setBaseImage(element);
-		if (element.clicked)
-			drawWatermark(wm_info, ctx);
-		addCanvasEvents(element, ctx);
-	});
-	element.image.src = element.content;
+	const canvas = element.canvas = element.div.getElementsByTagName("canvas")[0];
+	if (!element.mediaPromise) element.mediaPromise = loadMedia(element);
+	element.mediaPromise.then((media) => {
+		if (element.canvas !== canvas) return; // card was re-rendered in the meantime
+		element.media = media;
+		canvas.setAttribute("data-filename", getSaveFilename(element));
+		renderEntry(element);
+		addCanvasEvents(element);
+	}).catch((e) => console.error("Could not load", element.content, e));
 	return element.div;
 }
 
@@ -126,6 +254,14 @@ function saveCanvas(my_canvas, filename) {
 	canvas_link.click();
 }
 
+function saveBlob(blob, filename) {
+	const url = URL.createObjectURL(blob);
+	canvas_link.href = url;
+	canvas_link.setAttribute("download", filename);
+	canvas_link.click();
+	setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
 function reloadEntry(id) {
 	const fanart = getFanart(id);
 	if (!fanart) return;
@@ -153,13 +289,20 @@ function drawWatermark(wm_info, ctx) {
 	ctx.drawImage(WATERMARK, wm_info.x - (WATERMARK_WIDTH / 2), wm_info.y - (WATERMARK_HEIGHT / 2), WATERMARK_WIDTH, WATERMARK_HEIGHT);
 }
 
-function addWatermark(event, element, ctx) {
-	setBaseImage(element);
-	let [x, y] = clickCoordsToCanvas(event.clientX, event.clientY, element.canvas);
-	element.watermark.x = x;
-	element.watermark.y = y;
-	drawWatermark(element.watermark, ctx);
+function renderEntry(element, c = element.canvas, preview = true) {
+	if (!element.media) return;
+	setBaseImage(element, c);
+	if (element.clicked || (preview && element.hovering))
+		drawWatermark(element.watermark, c.getContext("2d"));
 }
+
+function animationLoop() {
+	for (const fanart of fanarts)
+		if (fanart.media && fanart.media.animated && fanart.div && fanart.div.isConnected)
+			renderEntry(fanart);
+	requestAnimationFrame(animationLoop);
+}
+requestAnimationFrame(animationLoop);
 
 function updateOpacity() {
 	opacity_label.innerHTML = Math.round(opacity_range.value * 100) + '%';
@@ -169,25 +312,24 @@ function getFactor(img_width, img_height, max_width, max_height) {
 	return Math.min(max_width / img_width, max_height / img_height);
 }
 
-function setBaseImage(element) {
-	const img = element.image;
-	const c = element.canvas;
+function setBaseImage(element, c = element.canvas) {
+	const media = element.media;
 	const ctx = c.getContext("2d");
-	const f = getFactor(img.width, img.height, MAX_WIDTH, MAX_HEIGHT);
-	ctx.imageSmoothingEnabled = (f < 1);
+	const f = getFactor(media.width, media.height, MAX_WIDTH, MAX_HEIGHT);
 
-	const pre_width = Math.ceil(img.width * f);
-	const pre_height = Math.ceil(img.height * f);
+	const pre_width = Math.ceil(media.width * f);
+	const pre_height = Math.ceil(media.height * f);
 
 	if (element.rotated % 2) [c.width, c.height] = [pre_height, pre_width];
 	else [c.width, c.height] = [pre_width, pre_height];
-	
+	ctx.imageSmoothingEnabled = (f < 1);
+
 	const rotation_radians = radians_factor * element.rotated;
 	ctx.rotate(rotation_radians);
 
 	offset_x = (element.rotated == 2 || element.rotated == 3) ? -pre_width : 0;
 	offset_y = (element.rotated == 1 || element.rotated == 2) ? -pre_height : 0;
-	ctx.drawImage(img, offset_x, offset_y, pre_width, pre_height);
+	ctx.drawImage(media.source, offset_x, offset_y, pre_width, pre_height);
 	ctx.rotate(-rotation_radians);
 }
 
@@ -220,9 +362,7 @@ function toggleInvert(id, button) {
 	if (!entry.enabled) return;
 	entry.watermark.invert = entry.watermark.invert == '' ? 'invert(1)' : '';
 	button.innerText = entry.watermark.invert ? emoji_color_black : emoji_color;
-	const ctx = entry.canvas.getContext('2d');
-	setBaseImage(entry);
-	drawWatermark(entry.watermark, ctx);
+	renderEntry(entry);
 }
 
 async function postData(url = "", data = {}) {
@@ -230,30 +370,110 @@ async function postData(url = "", data = {}) {
 	return response.json();
 }
 
-function saveEntry(id) {
-	const entry = getFanart(id);
-	if (!entry) return;
-	if (!entry.enabled) return;
-	saveCanvas(entry.canvas, entry.canvas.getAttribute("data-filename"));
+function getAudioTracks(media) {
+	if (!(media.source instanceof HTMLVideoElement)) return [];
+	try {
+		if (!audio_ctx) audio_ctx = new AudioContext();
+		if (!media.audio) {
+			// route the audio only into the recording, so the preview stays silent
+			const src = audio_ctx.createMediaElementSource(media.source);
+			media.audio = audio_ctx.createMediaStreamDestination();
+			src.connect(media.audio);
+			media.source.muted = false;
+		}
+		audio_ctx.resume();
+		return media.audio.stream.getAudioTracks();
+	} catch (e) {
+		console.warn("Could not capture audio:", e);
+		return [];
+	}
 }
 
-function saveCanvasIG(my_canvas) {
+function composeIG(my_canvas, dest) {
 	const f = getFactor(my_canvas.width, my_canvas.height, IG_MAX_WIDTH, IG_MAX_HEIGHT);
 	const width = Math.ceil(my_canvas.width * f);
 	const height = Math.ceil(my_canvas.height * f);
 	const offset_x = Math.round((IG_MAX_WIDTH - width) / 2);
 	const offset_y = Math.round((IG_MAX_HEIGHT - height) / 2);
-	destCtx = canvas_ig.getContext('2d');
+	const destCtx = dest.getContext('2d');
 	destCtx.drawImage(IG_TEMPLATE, 0, 0);
 	destCtx.drawImage(my_canvas, IG_MIN_OFFSET_X + offset_x, IG_MIN_OFFSET_Y + offset_y, width, height);
-	saveCanvas(canvas_ig, "IG - " + my_canvas.getAttribute("data-filename"));
 }
 
-function saveEntryIG(id) {
-	entry = getFanart(id);
-	if (!entry) return;
+async function recordEntry(entry, ig, button) {
+	const filename = (ig ? "IG - " : "") + getSaveFilename(entry);
+	const media = entry.media;
+	const base = document.createElement("canvas");
+	let target = base;
+	if (ig) {
+		target = document.createElement("canvas");
+		[target.width, target.height] = [canvas_ig.width, canvas_ig.height];
+	}
+	const draw = () => {
+		renderEntry(entry, base, false);
+		if (ig) composeIG(base, target);
+	};
+
+	if (!VIDEO_MIME) {
+		// MediaRecorder not supported: save the current frame
+		draw();
+		saveCanvas(target, filename.replace(/\.\w+$/, ".png"));
+		return;
+	}
+
+	const old_text = button && button.innerText;
+	if (button) { button.disabled = true; button.innerText = "⏳"; }
+
+	try {
+		await media.restart();
+		draw();
+		const stream = target.captureStream(VIDEO_FPS);
+		getAudioTracks(media).forEach(t => stream.addTrack(t));
+		const recorder = new MediaRecorder(stream, { mimeType: VIDEO_MIME, videoBitsPerSecond: 8000000 });
+		const chunks = [];
+		recorder.addEventListener("dataavailable", (e) => { if (e.data.size) chunks.push(e.data); });
+		const stopped = new Promise(res => recorder.addEventListener("stop", res, { once: true }));
+
+		let recording = true;
+		const tick = () => { if (!recording) return; draw(); requestAnimationFrame(tick); };
+		recorder.start();
+		tick();
+		await new Promise(res => setTimeout(res, media.duration));
+		recording = false;
+		recorder.stop();
+		await stopped;
+		saveBlob(new Blob(chunks, { type: VIDEO_MIME.split(";")[0] }), filename);
+	} catch (e) {
+		console.error("Could not record", entry.content, e);
+		alert("Impossibile salvare il video: " + e);
+	} finally {
+		if (button) { button.disabled = false; button.innerText = old_text; }
+	}
+}
+
+function saveFanart(entry, button) {
+	if (isAnimated(entry)) return recordEntry(entry, false, button);
+	saveCanvas(entry.canvas, entry.canvas.getAttribute("data-filename"));
+}
+
+function saveFanartIG(entry, button) {
+	if (isAnimated(entry)) return recordEntry(entry, true, button);
+	composeIG(entry.canvas, canvas_ig);
+	saveCanvas(canvas_ig, "IG - " + entry.canvas.getAttribute("data-filename"));
+}
+
+function saveEntry(id, button) {
+	const entry = getFanart(id);
+	if (!entry || !entry.media) return;
 	if (!entry.enabled) return;
-	saveCanvasIG(entry.canvas);
+	saveFanart(entry, button);
+}
+
+function saveEntryIG(id, button) {
+	const entry = getFanart(id);
+	if (!entry || !entry.media) return;
+	if (!entry.enabled) return;
+	saveFanartIG(entry, button);
 }
 
 function getArtworks() {
@@ -266,6 +486,7 @@ function getArtworks() {
 			fanarts.push(...data.map((element) => {
 				return {
 					...element,
+					"kind": getMediaKind(element.content),
 					"enabled": 1,
 					"rotated": 0,
 					"watermark": { invert: "" },
@@ -283,8 +504,8 @@ function saveAll() {
 	const response = confirm("Vuoi davvero scaricare tutte le fanart?");
 	if (response == false) return;
 	fanarts.forEach((fanart) => {
-		if (fanart.enabled)
-			saveCanvas(fanart.canvas, fanart.canvas.getAttribute("data-filename"));
+		if (fanart.enabled && fanart.media)
+			saveFanart(fanart);
 	})
 }
 
@@ -292,8 +513,8 @@ function saveAllIG() {
 	const response = confirm("Vuoi davvero scaricare tutte le storie per le fanart?");
 	if (response == false) return;
 	fanarts.forEach((fanart) => {
-		if (fanart.enabled)
-			saveCanvasIG(fanart.canvas);
+		if (fanart.enabled && fanart.media)
+			saveFanartIG(fanart);
 	});
 }
 

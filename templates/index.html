@@ -90,8 +90,8 @@
                             <button class="btn btn-sm btn-outline-secondary" onclick="toggleEntry('{| id |}');">{{ .Emoji.Toggle }}</button>
                             <button class="btn btn-sm btn-outline-secondary" onclick="toggleInvert('{| id |}', this);">{{ .Emoji.Color }}</button>
                             <button class="btn btn-sm btn-outline-secondary" onclick="rotateEntry('{| id |}');">{{ .Emoji.Rotate }}</button>
-                            <button class="btn btn-sm btn-outline-secondary" onclick="saveEntry('{| id |}');">{{ .Emoji.Save }}</button>
-                            <button class="btn btn-sm btn-outline-secondary" onclick="saveEntryIG('{| id |}');">{{ .Emoji.SaveIG }}</button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="saveEntry('{| id |}', this);">{{ .Emoji.Save }}</button>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="saveEntryIG('{| id |}', this);">{{ .Emoji.SaveIG }}</button>
                             <button class="btn btn-sm btn-outline-secondary" onclick="moveUpDown('{| id |}', 1);">{{ .Emoji.Next }}</button>
                         </div>
                     </div>
