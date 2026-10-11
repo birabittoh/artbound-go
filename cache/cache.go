@@ -96,7 +96,13 @@ func handleEntry(entry *Entry, db *DB) string {
 	fileName, err := getFile(&db.googleApi, entry.FileID, CachePath)
 	if err != nil {
 		log.Println("Could not download file", entry.FileID)
+		return fileName
 	}
+	extension := filepath.Ext(fileName)
+	db.cachedEntries = append(db.cachedEntries, fileDetails{
+		FileName:  strings.TrimSuffix(fileName, extension),
+		Extension: extension,
+	})
 	return fileName
 }
 
@@ -132,7 +138,10 @@ func (db *DB) UpdateCall() UpdateDBPayload {
 	return UpdateDBPayload{db.LastUpdated.Format("02/01/2006 15:04"), newEntries}
 }
 
-func (db *DB) GetEntries(month string) ([]Entry, error) {
+// GetEntries returns the entries for the given month, downloading the
+// missing files. progress (optional) is called with the number of
+// downloaded files and the total number of files to download.
+func (db *DB) GetEntries(month string, progress func(done, total int)) ([]Entry, error) {
 	monthTest := func(f Entry) bool { return f.Month == month }
 	res := filter(db.Entries, monthTest)
 
@@ -140,11 +149,31 @@ func (db *DB) GetEntries(month string) ([]Entry, error) {
 		return nil, err
 	}
 
+	total := 0
+	for _, e := range res {
+		if cached, _ := isCached(db.cachedEntries, e.FileID); !cached {
+			total++
+		}
+	}
+
+	done := 0
+	if progress != nil {
+		progress(done, total)
+	}
 	for i := range res {
 		e := &res[i]
+		cached, _ := isCached(db.cachedEntries, e.FileID)
 		fileName := handleEntry(e, db)
 		e.FilePath = filepath.Join(CachePath, fileName)
-		e.FileName = strings.Split(fileName, filenameSeparator)[1]
+		if parts := strings.SplitN(fileName, filenameSeparator, 2); len(parts) == 2 {
+			e.FileName = parts[1]
+		}
+		if !cached {
+			done++
+			if progress != nil {
+				progress(done, total)
+			}
+		}
 	}
 
 	return res, nil

@@ -50,6 +50,13 @@
                     <input id="month_input" type="month" value="{{ .CurrentMonth }}">
                     <button class="btn btn-secondary my-2" onclick="getArtworks();" id="get_button">{{ .Emoji.GetFirst }}</button>
                 </div>
+                <div id="progress_div" hidden>
+                    <div class="progress">
+                        <div id="progress_bar" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar"
+                            style="width: 0%"></div>
+                    </div>
+                    <small id="progress_label"></small>
+                </div>
                 <div id="controls" hidden>
                     <a href="#" class="btn btn-secondary my-2" onclick="selectAllNone(1);" id="selectall_button">{{ .Emoji.SelectAll }}</a>
                     <a href="#" class="btn btn-secondary my-2" onclick="selectAllNone(0);" id="selectnone_button">{{ .Emoji.SelectNone }}</a>

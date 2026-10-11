@@ -109,20 +109,26 @@ func getHandler(db *cache.DB) http.HandlerFunc {
 			http.Error(w, "\"month\" parameter is required.", http.StatusBadRequest)
 			return
 		}
-		entries, err := db.GetEntries(month)
+		// Stream newline-delimited JSON: progress lines, then the entries.
+		w.Header().Set("Content-Type", "application/x-ndjson")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		flusher, _ := w.(http.Flusher)
+		enc := json.NewEncoder(w)
+
+		entries, err := db.GetEntries(month, func(done, total int) {
+			enc.Encode(map[string]int{"done": done, "total": total})
+			if flusher != nil {
+				flusher.Flush()
+			}
+		})
 		if err != nil {
-			http.Error(w, "Could not get entries.", http.StatusInternalServerError)
+			enc.Encode(map[string]string{"error": "Could not get entries."})
 			return
 		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-
-		if len(entries) == 0 {
-			w.Write([]byte("[]"))
-			return
+		if entries == nil {
+			entries = []cache.Entry{}
 		}
-		json.NewEncoder(w).Encode(entries)
+		enc.Encode(map[string][]cache.Entry{"entries": entries})
 	}
 }
 

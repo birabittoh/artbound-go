@@ -111,3 +111,16 @@ footer a {
 footer a:hover {
   text-decoration: none;
 }
+
+#progress_div {
+  margin: 10px auto 0;
+  max-width: 25rem;
+}
+
+#progress_div .progress {
+  background-color: var(--background0);
+}
+
+#progress_bar {
+  background-color: var(--accent);
+}
