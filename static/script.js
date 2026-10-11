@@ -16,6 +16,9 @@ const MAX_WIDTH = MAX_HEIGHT = 1000,
 	month_input = document.getElementById("month_input"),
 	month_div = document.getElementById("month_div"),
 	get_button = document.getElementById("get_button"),
+	progress_div = document.getElementById("progress_div"),
+	progress_bar = document.getElementById("progress_bar"),
+	progress_label = document.getElementById("progress_label"),
 	selectall_button = document.getElementById("selectall_button"),
 	selectnone_button = document.getElementById("selectnone_button"),
 	controls_div = document.getElementById("controls"),
@@ -476,28 +479,71 @@ function saveEntryIG(id, button) {
 	saveFanartIG(entry, button);
 }
 
-function getArtworks() {
+function setProgress(done, total) {
+	if (total == 0) {
+		progress_div.hidden = true;
+		return;
+	}
+	progress_div.hidden = false;
+	progress_bar.style.width = Math.round(done / total * 100) + "%";
+	progress_label.innerText = done < total
+		? `Download in corso: ${done}/${total} (ne mancano ${total - done})`
+		: `Download completato: ${done}/${total}`;
+}
+
+async function fetchArtworks(month_value) {
+	const res = await fetch("/get?month=" + month_value);
+	if (!res.ok) throw new Error(await res.text());
+
+	// the server streams newline-delimited JSON: progress lines, then the entries
+	const reader = res.body.getReader();
+	const decoder = new TextDecoder();
+	let buffer = "";
+	while (true) {
+		const { value, done } = await reader.read();
+		if (value) buffer += decoder.decode(value, { stream: true });
+		const lines = buffer.split("\n");
+		buffer = lines.pop();
+		for (const line of lines) {
+			if (!line.trim()) continue;
+			const msg = JSON.parse(line);
+			if (msg.error) throw new Error(msg.error);
+			if (msg.entries) return msg.entries;
+			setProgress(msg.done, msg.total);
+		}
+		if (done) throw new Error("Risposta incompleta dal server.");
+	}
+}
+
+async function getArtworks() {
 	const month_value = month_input.value;
 	if (months.has(month_value)) return;
 	get_button.disabled = true;
-	get_button.innerText = "🔄"
-	fetch("/get?month=" + month_value).then((res) => {
-		res.json().then((data) => {
-			fanarts.push(...data.map((element) => {
-				return {
-					...element,
-					"kind": getMediaKind(element.content),
-					"enabled": 1,
-					"rotated": 0,
-					"watermark": { invert: "" },
-				};
-			}));
-			controls_div.hidden = false;
-			updateOpacity();
-			updateFanartList();
-			months.add(month_value);
-		})
-	})
+	get_button.innerText = "🔄";
+	setProgress(0, 0);
+	try {
+		const data = await fetchArtworks(month_value);
+		fanarts.push(...data.map((element) => {
+			return {
+				...element,
+				"kind": getMediaKind(element.content),
+				"enabled": 1,
+				"rotated": 0,
+				"watermark": { invert: "" },
+			};
+		}));
+		controls_div.hidden = false;
+		updateOpacity();
+		updateFanartList();
+		months.add(month_value);
+		setTimeout(() => setProgress(0, 0), 1500);
+	} catch (e) {
+		console.error(e);
+		setProgress(0, 0);
+		alert("Impossibile caricare le fanart: " + e.message);
+		get_button.disabled = false;
+		get_button.innerText = emoji_get;
+	}
 }
 
 function saveAll() {
