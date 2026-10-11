@@ -151,20 +151,23 @@ func getFile(googleApi *GoogleAPI, fileID string, CachePath string) (string, err
 
 	fileName := fileID + filenameSeparator + fileInfo.Name
 	filePath := filepath.Join(CachePath, fileName)
-	out, err := os.Create(filePath)
-	if err != nil {
-		return "", err
-	}
-	defer out.Close()
-
 	res, err := srv.Files.Get(fileID).Download()
 	if err != nil {
 		return "", err
 	}
 	defer res.Body.Close()
 
-	_, err = io.Copy(out, res.Body)
+	out, err := os.Create(filePath)
 	if err != nil {
+		return "", err
+	}
+	_, err = io.Copy(out, res.Body)
+	if cerr := out.Close(); err == nil {
+		err = cerr
+	}
+	if err != nil {
+		// don't leave a partial file around, or it would be considered cached
+		os.Remove(filePath)
 		return "", err
 	}
 
