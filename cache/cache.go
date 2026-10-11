@@ -6,13 +6,19 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 )
 
 const (
 	CachePath         = "art"
 	filenameSeparator = "-_-_-_-_-_"
+	// maximum number of files downloaded from Drive at the same time
+	maxParallelDownloads = 4
 )
+
+// downloadFile is a variable so tests can replace it.
+var downloadFile = getFile
 
 type UpdateDBPayload struct {
 	LastUpdated string `json:"timestamp"`
@@ -23,6 +29,7 @@ type DB struct {
 	LastUpdated   time.Time
 	Entries       []Entry
 	cachedEntries []fileDetails
+	cacheMu       sync.Mutex // guards cachedEntries
 	googleApi     GoogleAPI
 }
 
@@ -85,20 +92,28 @@ func isCached(cachedEntries []fileDetails, target string) (bool, string) {
 	return false, ""
 }
 
+func (db *DB) isCached(target string) (bool, string) {
+	db.cacheMu.Lock()
+	defer db.cacheMu.Unlock()
+	return isCached(db.cachedEntries, target)
+}
+
 func handleEntry(entry *Entry, db *DB) string {
-	isFileCached, fileName := isCached(db.cachedEntries, entry.FileID)
+	isFileCached, fileName := db.isCached(entry.FileID)
 
 	if isFileCached {
 		log.Println(entry.FileID, "is cached.")
 		return fileName
 	}
 	log.Println(entry.FileID, "is not cached. Downloading.")
-	fileName, err := getFile(&db.googleApi, entry.FileID, CachePath)
+	fileName, err := downloadFile(&db.googleApi, entry.FileID, CachePath)
 	if err != nil {
 		log.Println("Could not download file", entry.FileID)
 		return fileName
 	}
 	extension := filepath.Ext(fileName)
+	db.cacheMu.Lock()
+	defer db.cacheMu.Unlock()
 	db.cachedEntries = append(db.cachedEntries, fileDetails{
 		FileName:  strings.TrimSuffix(fileName, extension),
 		Extension: extension,
@@ -112,7 +127,7 @@ func InitDB(spreadsheetId string, spreadsheetRange string) *DB {
 		log.Println("Could not list cached entries.")
 	}
 	googleApi := initGoogleAPI(spreadsheetId, spreadsheetRange)
-	db := &DB{time.Now(), []Entry{}, files, *googleApi}
+	db := &DB{LastUpdated: time.Now(), Entries: []Entry{}, cachedEntries: files, googleApi: *googleApi}
 	db.update()
 	return db
 }
@@ -149,30 +164,52 @@ func (db *DB) GetEntries(month string, progress func(done, total int)) ([]Entry,
 		return nil, err
 	}
 
-	total := 0
-	for _, e := range res {
-		if cached, _ := isCached(db.cachedEntries, e.FileID); !cached {
-			total++
+	var toDownload []int
+	for i, e := range res {
+		if cached, _ := db.isCached(e.FileID); !cached {
+			toDownload = append(toDownload, i)
 		}
 	}
+	total := len(toDownload)
 
+	var progressMu sync.Mutex
 	done := 0
 	if progress != nil {
 		progress(done, total)
 	}
-	for i := range res {
-		e := &res[i]
-		cached, _ := isCached(db.cachedEntries, e.FileID)
+
+	resolve := func(e *Entry) {
 		fileName := handleEntry(e, db)
 		e.FilePath = filepath.Join(CachePath, fileName)
 		if parts := strings.SplitN(fileName, filenameSeparator, 2); len(parts) == 2 {
 			e.FileName = parts[1]
 		}
-		if !cached {
+	}
+
+	// download the missing files in parallel
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, maxParallelDownloads)
+	for _, i := range toDownload {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(e *Entry) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			resolve(e)
+			progressMu.Lock()
+			defer progressMu.Unlock()
 			done++
 			if progress != nil {
 				progress(done, total)
 			}
+		}(&res[i])
+	}
+	wg.Wait()
+
+	// the remaining entries are already cached
+	for i := range res {
+		if res[i].FilePath == "" {
+			resolve(&res[i])
 		}
 	}
 
@@ -199,6 +236,8 @@ func (db *DB) Clear() error {
 	if err != nil {
 		return err
 	}
+	db.cacheMu.Lock()
 	db.cachedEntries = []fileDetails{}
+	db.cacheMu.Unlock()
 	return nil
 }
