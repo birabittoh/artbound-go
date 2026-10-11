@@ -31,6 +31,7 @@ const MAX_WIDTH = MAX_HEIGHT = 1000,
 	GIF_EXTENSIONS = new Set(["gif"]),
 	VIDEO_EXTENSIONS = new Set(["mp4", "m4v", "mov", "webm", "ogv", "mkv"]),
 	VIDEO_FPS = 30,
+	IG_MIN_DURATION = 15000, // short animations are looped up to this length in stories
 	VIDEO_MIME = [
 		"video/mp4;codecs=avc1.640028,mp4a.40.2",
 		"video/mp4;codecs=avc1,mp4a",
@@ -441,7 +442,9 @@ async function recordEntry(entry, ig, button) {
 		const tick = () => { if (!recording) return; draw(); requestAnimationFrame(tick); };
 		recorder.start();
 		tick();
-		await new Promise(res => setTimeout(res, media.duration));
+		// stories don't loop, so repeat short animations (whole loops only)
+		const loops = ig ? Math.max(1, Math.ceil(IG_MIN_DURATION / media.duration)) : 1;
+		await new Promise(res => setTimeout(res, media.duration * loops));
 		recording = false;
 		recorder.stop();
 		await stopped;
